@@ -1,0 +1,796 @@
+---
+title: "ADVANCED ANALYTICS AND MACHINE LEARNING ITA07103"
+subtitle: "Understanding Factors Influencing Scientific Citations"
+author: "YAMINI BHARATH KUMAR"
+date: "`r Sys.Date()`"
+output: html_document
+include-before:
+  - \renewcommand{\contentsname}{First Assignment}
+  - \renewcommand{\pagename}{Page}
+  - \usepackage{sectsty}  # For section styling
+  - \sectionfont{\bfseries\Large}  # Makes section headings bold and large
+---
+
+<style>
+  body {
+    font-size: 12pt;   /* Setting the font size to 12 for the body text */
+    text-align: justify;  /* Justifying the body text */
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: bold;  /* Making all headings bold */
+  }
+</style>
+
+
+```{r}
+  #TABLE OF CONTENT
+#*Load Required Packages*
+ 
+# 1. INTRODUCTION
+# 2. EXPLORATORY DATA ANALYSIS
+# 3. SIMPLE LINEAR REGRESSION
+# 4. MULTIPLE LINEAR REGRESSION
+# 5. FEATURE SELECTION AND REGULARIZATION
+# 6. INTERACTION TERMS AND MODEL REFINEMENT
+# 7. LOGISTICS REGRESSION
+# 8. CONCLUSION
+# 9. REFERENCES
+# 10.APPENDIXES
+
+```
+                                   
+ 
+ 
+```{r}
+
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+# You can load your favorite packages here
+#library(tidyverse)
+#library(dplyr)
+#library(ggplot2)
+#library(glmnet) # for LASSO
+#library(caret) # for train/test splitting, cross-validation
+#library(dplyr)
+
+
+# Load the data
+SC <- read.csv("C:/Users/Admin/Desktop/MSc BA/7103 AM/merged_C01_network_grant_patent_paper_1980_2020_all_anti_micr_cleaned.csv")
+
+
+# Drop unused columns as instructed (for example):
+drop_cols <- c("TopK", "IsSurvey", "Binary1", "Binary2",  "Score1", "Score2", "Score3", "Score4", "Title", "id", "Status", "Patent_IDs","Impact")
+#SC <- SC[, !(names(SC) %in% drop_cols)]
+#na.omit(SC)
+
+# Quick check of the data
+#head(SC)
+#str(SC)
+
+
+```
+
+
+1. Introduction
+
+Understanding the factors influencing scientific citations is essential for evaluating the impact of research publications. Citations serve as a key metric for academic influence, and various factors—such as author collaboration, network metrics, funding sources, and patent associations—can shape citation counts. This study aims to analyze these relationships using a comprehensive data-driven approach.
+
+We begin with Exploratory Data Analysis (EDA) to uncover patterns, detect outliers, and understand variable distributions. Next, we apply Simple and Multiple Linear Regression to model citation counts, assessing the significance of different predictors. To enhance model performance and handle multicollinearity, we use Lasso Regression for feature selection. Term refinement further improves variable selection and model clarity. Additionally, Logistic Regression is applied to classify whether a research paper is highly cited or not. By combining these techniques, this study provides deeper insights into the drivers of scientific influence, offering a robust framework for citation prediction.
+
+
+
+2.Exploratory data Analysis
+
+2.1 summary statistics
+
+```{r}
+# Summary statistics 
+summary(SC) 
+```
+Several variables in the dataset carry high information content, including OutDegree (Mean: 3.365), InDegree (Mean: 3.365), and TotalDegree (Mean: 6.731), which indicate the paper's connectivity in the citation network. ClusteringCoeff (Mean: 0.04867) reflects the interconnection of citations. Citations_in_body (Mean: 0.618), Citations_in_front (Mean: 0.9371), and CrossGroupCitations (Mean: 2.037) show citation distribution across different sections. Grant_Count (Mean: 0.2627) and Patent_Count (Mean: 1.837) provide insights into research funding and technological contributions. Binary indicators like Has_Grant_binary (Mean: 0.1073) and Has_Patent_binary (Mean: 0.2365) suggest external support or innovation. YearNumeric (Mean: 18.72) captures citation trends over time. Other variables like InGroup1_binary (Mean: 0.7488) and InGroup2_binary (Mean: 0.4914) may be less informative.
+
+```{r}
+# Summary statistics By Mean
+summary(SC$OutDegree)
+summary(SC$InDegree)
+summary(SC$TotalDegree)
+summary(SC$ClusteringCoeff)
+summary(SC$CrossGroupCitations)
+summary(SC$PubYear)
+summary(SC$AuthorNum)
+summary(SC$CitedCount)
+
+```
+•	OutDegree and TotalDegree show wide ranges, indicating diverse citation patterns
+•	ClusteringCoeff, CrossGroupCitations, Grant_Count, and Patent_Count have low medians but high maximums
+•	Publication years range from 1980 to 2014
+•	Author count averages 4.68 (median 4)
+•	CitedCount averages 59.38 (median 31), with high variability
+(suggesting skewed distributions with few highly influential articles)
+
+
+2.2 Visualization
+
+
+```{r}
+library(ggplot2)
+# Scatterplot of OutDegree vs. CitedCount
+ggplot(SC, aes(x = OutDegree, y = CitedCount)) +
+  geom_point(colour = "yellow") +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Scatterplot: OutDegree vs. CitedCount")
+
+
+```
+
+•	Higher out-degree generally correlates with higher citation counts.
+
+```{r}
+# Scatterplot of TotalDegree vs. CitedCount
+ggplot(SC, aes(x = TotalDegree, y = CitedCount)) +
+  geom_point(color = "pink") +
+  geom_smooth(method = "lm", se = FALSE, color = "black") +
+  labs(title = "Scatterplot: TotalDegree vs. CitedCount", x = "Total Degree", y = "Cited Count")
+
+```
+
+•	Higher total degree generally correlates with higher citation counts.
+
+```{r}
+# Scatterplot of ClusteringCoeff vs. CitedCount
+ggplot(SC, aes(x = ClusteringCoeff, y = CitedCount)) +
+  geom_point(color = "purple") +
+  geom_smooth(method = "lm", se = FALSE, color = "black") +
+  labs(title = "Scatterplot: Clustering Coefficient vs. CitedCount", x = "Clustering Coefficient", y = "Cited Count")
+
+```
+
+•	Lower clustering coefficient shows a wider range of citation counts.
+
+```{r}
+# Scatterplot of CrossGroupCitations vs. CitedCount
+ggplot(SC, aes(x = CrossGroupCitations, y = CitedCount)) +
+  geom_point(color = "orange") +
+  geom_smooth(method = "lm", se = FALSE, color = "black") +
+  labs(title = "Scatterplot: Cross Group Citations vs. CitedCount", x = "Cross Group Citations", y = "Cited Count")
+
+```
+
+•	More cross-group citations weakly correlate with higher overall citations.
+```{r}
+# Scatterplot of InDegree vs. CitedCount
+ggplot(SC, aes(x = InDegree, y = CitedCount)) +
+  geom_point(color = "brown") +
+  geom_smooth(method = "lm", se = FALSE, color = "black") +
+  labs(title = "Scatterplot: InDegree vs. CitedCount", x = "InDegree", y = "Cited Count")
+```
+
+•	More InDegree weakly correlate with higher overall citation counts.
+
+```{r}
+library(ggplot2)
+# Scatterplot of PubYear vs. CitedCount
+ggplot(SC, aes(x = PubYear, y = CitedCount)) +
+  geom_point(colour = "skyblue") +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(title = "Scatterplot: PubYear vs. CitedCount", x = "Publication Year", y = "Cited Count")
+
+
+```
+
+INFERENCE:
+•	More recent publications tend to have higher citation counts.
+
+```{r}
+# scatterplot of AuthorNum
+ggplot(SC, aes(x = AuthorNum, y = CitedCount)) +
+  geom_point(colour = "violet") +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Scatterplot: AuthorNum vs. CitedCount")
+
+```
+
+•	More authors tend to correlate with slightly higher citation counts.
+
+
+
+2.3 Correlation Matrix
+```{r}
+library(corrplot)
+ numerical_data <- SC[, sapply(SC, is.numeric)] # Select only numeric columns
+ cor_matrix <- cor(numerical_data, use = "pairwise.complete.obs") # Calculate the correlation matrix, handle NAs
+ cor_matrix[1:7,1:7]
+ #Visualize the correlation matrix
+corrplot(cor_matrix, method = "color", type = "upper", tl.cex=0.7)#Visualize the correlation matrix
+```
+
+INFERENCE:
+This heatmap visualizes the correlation matrix between various publication metrics. Darker blues indicate strong positive correlations, while darker reds indicate strong negative correlations. Citation count strongly correlates with degree measures (OutDegree, InDegree, TotalDegree). Funding agencies and citation locations show weaker correlations with other metrics. YearNumeric has a moderate positive correlation with citation count and degree measures.
+
+
+WITH THE HELP OF SUMMARY STAISTICS AND CORRELATION MATRIX WE HAVE CHOOSEN HIGHLY CORRELATED KEY PREDICTORS FOR ANALYSIS
+
+3.Simple Linear Regression
+3.1 Model fit
+```{r}
+#Fit a simple linear regression model
+
+ library(caret)
+ library(car)  
+ 
+ # Fit a simple linear regression model
+ model1 <- lm(CitedCount ~ OutDegree, data=SC)
+ summary(model1)
+
+```
+
+INFERENCE:
+OutDegree significantly predicts CitedCount, but the relationship is very weak, explaining less than 1% of the variance.
+
+
+3.2 Residual
+```{r}
+ # Residual analysis
+ residuals <- resid(model1)
+ plot(SC$OutDegree, residuals, main="Residuals vs. OutDegree", xlab="OutDegree", ylab="Residuals")
+ abline(h=0, col="skyblue")  # Add a horizontal line at y=0
+ 
+ # Histogram of residuals
+ hist(residuals, main="Histogram of Residuals", xlab="Residuals")
+ 
+ # Q-Q plot of residuals
+ qqnorm(residuals, main="Q-Q Plot of Residuals")
+ qqline(residuals, col="orange")
+ 
+```
+INFERENCE:
+•	Most residuals are near zero, with a long tail indicating outliers.
+•	Residuals are scattered, but some large positive outliers exist at low OutDegree.
+•	Residuals deviate from normality, especially at tails, indicating non-normal distribution.
+
+```{r}
+library(lmtest)
+ 
+ # Breusch-Pagan test for heteroscedasticity
+ bptest(model1)
+```
+INFERENCE:
+This Breusch-Pagan test result (BP = 15.75, df = 1, p-value = 7.228e-05) on model1 indicates significant heteroscedasticity. The variance of the residuals is not constant, violating a key assumption of linear regression.
+
+
+
+4.Multiple Linear Regression}
+4.1 Model fit(MLR)
+Two Models were performed here to know the model performance with different Variables which is named as model_initial and model enhanced 
+```{r}
+ # mULTIPLE PREGRESSION
+ # Initial model with key predictors
+ model_initial <- lm(CitedCount ~  OutDegree+TotalDegree + ClusteringCoeff + CrossGroupCitations, data = SC)
+
+ 
+ # Enhanced model with additional predictors
+ model_enhanced <- lm(CitedCount ~ OutDegree+ TotalDegree + ClusteringCoeff + CrossGroupCitations + AuthorNum + Grant_Count, data = SC)
+ 
+ 
+ # Using summary() to evaluate significance from the models
+ summary(model_initial)
+ summary(model_enhanced)
+ 
+
+ # Print the coefficients and p-values
+ coef_table_initial <- summary(model_initial)$coefficients
+ print("Coefficients for Initial Model:")
+ print(coef_table_initial)
+ 
+ coef_table_enhanced <- summary(model_enhanced)$coefficients
+ print("Coefficients for Enhanced Model:")
+ print(coef_table_enhanced)
+ 
+ #cOLLINERAITY cHECK
+ # Calculate Variance Inflation Factors (VIF)
+ library(car)
+ vif_initial <- vif(model_initial)
+ print("VIF for Initial Model:")
+ print(vif_initial)
+ 
+ vif_enhanced <- vif(model_enhanced)
+ print("VIF for Enhanced Model:")
+ print(vif_enhanced)
+ 
+```
+
+INFERENCE:
+VIF > 5 or 10 indicates high collinearity
+Model2 significantly predicts CitedCount better than model1, but R-squared is still low. No multicollinearity exists. Negative coefficients need investigation.
+Model_enhanced adds AuthorNum and Grant_Count to model_initial. Both models are highly significant, but model_enhanced has a slightly higher R-squared (0.1866 vs. 0.1803). All predictors are significant in both models. VIF values are low, indicating no multicollinearity. ClusteringCoeff and CrossGroupCitations have negative coefficients in both models, which needs further investigation.
+
+
+
+4.2 models forInGroup1 and InGroup2 subsets
+```{r}
+ # Subset data
+ library(dplyr)
+ 
+ # Models for InGroup1 and InGroup2 subsets
+ model_ingroup1 <- lm(CitedCount ~ TotalDegree + ClusteringCoeff + CrossGroupCitations, data=SC[SC$InGroup1_binary == 1, ])
+ summary(model_ingroup1)
+ 
+ model_ingroup2 <- lm(CitedCount ~ TotalDegree + ClusteringCoeff + CrossGroupCitations, data=SC[SC$InGroup2_binary == 1, ])
+ summary(model_ingroup2)
+ 
+```
+INFERENCE :
+Model_ingroup1 and model_ingroup2 analyze CitedCount within InGroup1 and InGroup2 subsets. Both are highly significant. TotalDegree positively impacts CitedCount, while ClusteringCoeff and CrossGroupCitations have negative effects. Model_ingroup2 exhibits a higher R-squared (0.2622) and lower residual standard error (76.43), indicating a better fit.
+
+
+
+4.3 Effect of Predictor PubYear
+Here we have just used the the predictor Variables Pub year to check the model performance 
+```{r}
+# Model without PubYear
+ model_no_pubyear <- lm(CitedCount ~ TotalDegree + ClusteringCoeff + CrossGroupCitations + AuthorNum + Grant_Count, data = SC)
+ summary(model_no_pubyear)
+ 
+ # Model with PubYear
+ model_with_pubyear <- lm(CitedCount ~ TotalDegree + ClusteringCoeff + CrossGroupCitations + AuthorNum + Grant_Count + PubYear, data = SC)
+ summary(model_with_pubyear)
+ 
+ # Compare the significance of PubYear
+ coef_table_with_pubyear <- summary(model_with_pubyear)$coefficients
+ print("Coefficients with PubYear:")
+ print(coef_table_with_pubyear["PubYear", ])
+ 
+ 
+ # PubYear significance with other predictors
+ model_pubyear <- lm(CitedCount ~ PubYear + AuthorNum + CrossGroupCitations + Grant_Count, data=SC)
+ summary(model_pubyear)
+ 
+```
+
+INFERENCE:
+•	Model_with_pubyear slightly improves R-squared (0.1907 vs 0.1866) over model_no_pubyear. PubYear is significant, positively impacting CitedCount. Other coefficients remain largely consistent across both models.
+•	PubYear is a significant predictor of CitedCount in both models, but its effect varies depending on the other predictors included. 
+•	model_pubyear has a very low R-squared, indicating that it is not a good predictor of CitedCount on its own.
+
+
+4.4 Polynominal
+```{r}
+# Polynomial regression with PubYear
+ SC$PubYear2 <- SC$PubYear^2  # Create a squared term
+ model_poly <- lm(CitedCount ~ PubYear + PubYear2, data=SC)
+ summary(model_poly)
+ 
+ #Other predictors
+ model_other <- lm(CitedCount ~ AuthorNum + Impact  + Grant_Count + Patent_Count, data = SC)
+ summary(model_other)
+ 
+```
+
+INFERENCE:
+The polynomial regression model with PubYear and PubYear2 explains only 0.53% of the variance in citation counts, indicating that publication year has a limited predictive power. While the p-values for these variables are significant, their impact is weak, as shown by the low R-squared values.
+
+In contrast, the multiple linear regression model, with AuthorNum, Impact, Grant_Count, and Patent_Count as predictors, significantly improves model performance, explaining 96.9% of the variance in citation counts. The p-values for all predictors are highly significant, highlighting that factors like research impact, funding, and patents strongly influence citation counts.
+
+In conclusion, the polynomial model offers limited insight, while the multiple linear regression model provides a far more robust understanding of citation counts.
+
+Insights:
+
+The coefficients for PubYear (positive) and PubYear2 (negative) suggest that citation trends might initially increase over time but decrease as time progresses, reflecting a non-linear relationship. However, this trend is weak, given the low R-squared value.
+
+
+5.Feature Selection and Regularization 
+5.1 Lasso regression With Forward Selection and Cross validation
+```{r}
+#install.packages(c("glmnet", "caret"))
+library(glmnet)  # For LASSO regression
+library(caret)   # For cross-validation
+# LASSO regression
+ x <- as.matrix(SC[, c("PubYear", "AuthorNum", "OutDegree", "TotalDegree", "ClusteringCoeff", "CrossGroupCitations", "Grant_Count", "Patent_Count")]) # Matrix of predictors
+ y <- SC$CitedCount # Response variable
+ 
+ #Setting a seed ensures the results are reproducible
+ set.seed(123)
+ 
+ # Cross-validation to find the optimal lambda
+ cv_lasso <- cv.glmnet(x, y, alpha=1, nfolds=10) # Alpha=1 for LASSO, nfolds = number of folds
+ best_lambda <- cv_lasso$lambda.min
+ 
+ # Fit LASSO model with the optimal lambda
+ lasso_model <- glmnet(x, y, alpha=1, lambda=best_lambda)
+ coef(lasso_model) # Show coefficients
+ 
+ # Forward selection (using regsubsets from leaps package)
+ library(leaps)
+ 
+ # Perform forward selection
+ forward_selection <- regsubsets(CitedCount ~ PubYear + AuthorNum + OutDegree + TotalDegree + ClusteringCoeff + CrossGroupCitations + Grant_Count + Patent_Count, data = SC, method = "forward")
+ # Summarize the results
+ summary(forward_selection)
+ 
+ library(caret)
+ # Cross-validation for model evaluation (using caret)
+ # Define the control using trainControl function
+ train_control <- trainControl(method = "cv", number = 10)
+ 
+ # Train the model using cross-validation
+ model <- train(CitedCount ~ TotalDegree + ClusteringCoeff + CrossGroupCitations, data = SC, trControl = train_control, method = "lm")
+ 
+ # Print the results
+ print(model)
+ 
+```
+
+INFERENCE:
+LASSO regression and forward selection approach feature selection differently. LASSO uses L1 regularization to shrink coefficients and eliminate less significant predictors, often resulting in a simpler model. Forward selection, on the other hand, adds variables based on their significance, which can lead to a more complex model.
+
+Cross-validation results for forward selection show:
+RMSE: 107.41
+R-squared: 0.1814
+MAE: 45.64
+LASSO, by focusing on the most important predictors, is likely to deliver a more accurate and simplified model. Comparing these models based on their cross-validation metrics will help assess which method offers better predictive power for citation count prediction.
+
+6.Interaction Terms and Model Refinement
+```{r}
+# Interaction term
+ model_interact <- lm(CitedCount ~ Grant_Count * Patent_Count + TotalDegree + ClusteringCoeff + CrossGroupCitations, data=SC)
+ summary(model_interact)
+ 
+ # Interaction models for subsets
+ model_interact_ingroup1 <- lm(CitedCount ~ Grant_Count * Patent_Count + TotalDegree + ClusteringCoeff + CrossGroupCitations, data=SC[SC$InGroup1_binary == 1, ])
+ summary(model_interact_ingroup1)
+ 
+ model_interact_ingroup2 <- lm(CitedCount ~ Grant_Count * Patent_Count + TotalDegree + ClusteringCoeff + CrossGroupCitations, data=SC[SC$InGroup2_binary == 1, ])
+ summary(model_interact_ingroup2)
+ 
+```
+
+INFERENCE:
+The interaction term Grant_Count * Patent_Count is significant across all three models, indicating that the combined effect of these two variables plays a crucial role in predicting citation counts. In all models, Patent_Count has a very strong positive effect on CitedCount, with Grant_Count showing a significant positive effect in some groups (but not in InGroup1). Other variables like TotalDegree, ClusteringCoeff, and CrossGroupCitations also have significant effects on CitedCount.
+
+Model 1 (Overall Data):
+R-squared: 0.2209
+Significant predictors: Grant_Count, Patent_Count, TotalDegree, ClusteringCoeff, CrossGroupCitations, and their interaction term.
+Model 2 (InGroup1 Subset):
+R-squared: 0.2358
+Grant_Count shows a non-significant effect, while Patent_Count and the other variables are still significant.
+Model 3 (InGroup2 Subset):
+R-squared: 0.289
+The Grant_Count predictor becomes significant, and the model explains more variance compared to the other two.
+
+INSIGHT:
+Interaction Effect: The Grant_Count x Patent_Count interaction is crucial across all models, suggesting that the combined impact of grants and patents drives higher citation counts.
+
+Subset Differences: In InGroup1, Grant_Count shows weaker significance, indicating that its impact on citation count might depend on specific group characteristics.
+
+Model Performance: The R-squared values improve as we narrow down to specific groups (InGroup2 has the highest R-squared of 0.289), suggesting that more homogeneous subsets help explain citation counts better.
+
+Predictor Impact: Patent_Count consistently shows the strongest positive influence on citations, while Grant_Count and CrossGroupCitations show variable significance across groups.
+
+7.Logistics Regression
+7.1 Model Fit(LR)
+```{r}
+# Log transformation
+ SC$logCitedCount <- log1p(SC$CitedCount)  # log1p handles 0 values
+ hist(SC$logCitedCount, main="Histogram of Log(CitedCount + 1)")
+ 
+ model_log <- lm(logCitedCount ~ TotalDegree + ClusteringCoeff + CrossGroupCitations + Grant_Count + Patent_Count, data=SC)
+ summary(model_log)
+ 
+```
+
+Log(CitedCount+1) transformation was applied. Model_log shows significant predictors, but R-squared is low (0.16), indicating moderate fit.
+
+7.2  binary variable (HighCitation) 
+```{r}
+library(ROCR)
+ 
+ # Create binary variable HighCitation
+ median_citations <- median(SC$CitedCount)
+ SC$HighCitation <- ifelse(SC$CitedCount > median_citations, 1, 0)
+ SC$HighCitation <- as.factor(SC$HighCitation)
+ 
+```
+
+A binary HighCitation variable was created based on median citations. A logistic regression model was fit to predict HighCitation using TotalDegree, ClusteringCoeff, and CrossGroupCitations. TotalDegree and CrossGroupCitations are highly significant, while ClusteringCoeff is not. The model shows a significant reduction in deviance, indicating a better fit compared to the null model. Warning messages suggest potential issues with fitted probabilities.
+
+
+7.3 Model Fit Of subsets (InGroup1, InGroup2) }
+```{r}
+
+ # Logistic regression model
+ logistic_model <- glm(HighCitation ~ TotalDegree + ClusteringCoeff + CrossGroupCitations, data=SC, family="binomial")
+ summary(logistic_model)
+ 
+ # Logistic regression models for subsets
+ logistic_model_ingroup1 <- glm(HighCitation ~ TotalDegree + ClusteringCoeff + CrossGroupCitations, data=SC[SC$InGroup1_binary == 1, ], family="binomial")
+ summary(logistic_model_ingroup1)
+ 
+ logistic_model_ingroup2 <- glm(HighCitation ~ TotalDegree + ClusteringCoeff + CrossGroupCitations, data=SC[SC$InGroup2_binary == 1, ], family="binomial")
+ summary(logistic_model_ingroup2)
+ 
+ 
+ # Predictions and evaluation
+ predictions <- predict(logistic_model, type="response")
+ predicted_classes <- ifelse(predictions > 0.5, 1, 0)
+ 
+```
+
+Both models show significant effects of TotalDegree and CrossGroupCitations. 
+•  The significance of ClusteringCoeff varies between the groups, being significant in InGroup2 but not in InGroup1. 
+•  InGroup2 model exhibits a better overall fit (lower AIC, greater deviance reduction). 
+•  The effect of Total degree is greater in the InGroup2 model. 
+•  The Intercept is much lower in the InGroup2 model.
+
+
+7.4 Confusion Matrix And Recall
+```{r}
+library(caret)
+ 
+ # Confusion matrix
+ confusionMatrix(as.factor(predicted_classes), SC$HighCitation)
+ 
+ #Precision, Recall, F1-Score
+ precision <- posPredValue(as.factor(predicted_classes), SC$HighCitation)
+ recall <- sensitivity(as.factor(predicted_classes), SC$HighCitation)
+ f1 <- (2 * precision * recall) / (precision + recall)
+ 
+ print(paste("Precision:", precision))
+ print(paste("Recall:", recall))
+ print(paste("F1-Score:", f1))
+ 
+```
+
+INFERENCE:
+The logistic model shows 63.7% accuracy, with high sensitivity but low specificity, indicating better prediction for negative cases.
+Recall
+The model has a precision of 0.60, recall of 0.85, and an F1-score of 0.70, indicating a balance between precision and recall.
+
+
+8.Conclusion
+
+Citation impact is influenced by a combination of network metrics, funding, collaboration patterns, and publication timing. Simple regression models suggest that OutDegree predicts CitedCount, but with a limited explanatory power, indicating that citation patterns are complex. Multi-variable models, especially those enhanced with AuthorNum and Grant_Count, improve prediction accuracy. Subgroup analysis reveals that predictors behave differently across research clusters, emphasizing the need for tailored strategies based on specific research contexts. LASSO regression highlights TotalDegree and CrossGroupCitations as significant predictors of citation impact. Additionally, logistic regression models show that TotalDegree plays a key role in classifying citation count into high and low categories.
+
+To enhance citation impact, researchers should focus on expanding their network and fostering cross-group collaborations, as network metrics like OutDegree and TotalDegree show a strong correlation with citation count. Additionally, securing grants and patents can contribute to citation growth, although their effects are context-dependent and warrant further exploration. Encouraging interdisciplinary collaborations and co-authorship can also increase citation impact, as publications with more authors tend to receive slightly higher citations. Staying updated with emerging research trends and ensuring timely dissemination of work can improve publication visibility and citation impact.Mostly all the key predictors are ebgaged with higher citation count
+
+Several limitations should be addressed to refine citation impact models. Many models exhibit low R-squared values, suggesting that unobserved factors, such as journal reputation, self-citations, influence citations. The presence of heteroscedasticity, indicated by Breusch-Pagan test results, violates regression assumptions and affects model reliability. There are also potential risks of multicollinearity, as some predictors have negative coefficients that require further investigation. Non-normal residuals, especially in simpler models, point to the need for non-linear transformations or alternative modeling techniques. Additionally, data skewness, particularly with metrics like Grant_Count and Patent_Count, implies that a small subset of highly influential papers may disproportionately affect the results. Lastly, binary classification models like logistic regression overlook continuous citation trends, limiting the scope of analysis.
+
+9.References
+Ban, H.-J. & Kim, H.-S., 2019. Understanding Customer Experience and Satisfaction through Airline Passengers’ Online Review. Sustainability, 11(15), p.4066. 
+https://www.mdpi.com/2071-1050/11/15/4066
+Uhuegho, K. O., Bakare, K. A., Ajisola, A. O., & Akume, A. A. (2022). A Review of Literature On Service Quality, Safety Perception, and Customer Satisfaction in the Airline Industry. In Advances in Multidisciplinary and scientific Research Journal Publication (Vol. 10, Issue 1, pp. 73–92). Creative Research Publishers.
+https://fcc08321-8158-469b-b54d-f591e0bd3df4.filesusr.com/ugd/185b0a_52676483e73b4f17b99bbdc03a5eb280.pdf
+Bacchi, S., Teoh, S. C., Lam, L., Lam, A., Casson, R. J., & Chan, W. O. (2022). Citation count for ophthalmology articles can be successfully predicted with machine learning. In Clinical & Experimental Ophthalmology (Vol. 50, Issue 6, pp. 687–690). Wiley.
+https://onlinelibrary.wiley.com/doi/10.1111/ceo.14087
+Khodabandehlou, S. and Zivari Rahman, M. (2017) 'Comparison of supervised machine learning techniques for customer churn prediction based on analysis of customer behavior', Journal of Systems and Information Technology, 19(1/2), pp. 65–93. 
+https://www.emerald.com/insight/content/doi/10.1108/jsit-10-2016-0061/full/html
+
+
+
+
+10. APPENDIXES
+
+data cleaning
+
+{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  comment = "#>",
+  tidy = TRUE,
+  tidy.opts = list(width.cutoff = 50)
+)
+```
+
+
+# Dataset Preparation Steps {.allowframebreaks}
+
+## Initial Data Processing {.allowframebreaks}
+
+### Dropping Unnecessary Columns
+- Remove the following columns:
+  - `Grant_Numbers`
+  - `Reference_Types`
+  - `Has_Self_Citation`
+
+
+
+### Handling Categorical Variables {.allowframebreaks}
+Convert these variables to dummy variables (limit max levels, group others as "Other"):
+
+- `Funding_Agencies`
+- `Has_Grant`
+- `InGroup1`
+- `InGroup2`
+- `Citation_Locations`
+- `Has_Patent`
+
+## Code: Dropping Columns and Filtering Years {.allowframebreaks}
+
+{r eval=TRUE, include=TRUE}
+# Load necessary library
+library(dplyr)
+
+# Read dataset (update the file path accordingly)
+# C:\Users\3057738\OneDrive - Queen's University Belfast\2025-02-01-ML-Assignment\Final_selected_for_assignment
+df <- read.csv("C:/Users/40459080/Desktop/merged_C01_network_grant_patent_paper_1980_2020_all_anti_micr.csv")
+
+# Drop unnecessary columns
+df <- df %>% 
+  select(-Grant_Numbers, -Reference_Types, -Has_Self_Citation)
+file nae as changed 
+
+```
+
+## Code: Handling Categorical Variables {.allowframebreaks}
+{r eval=TRUE, include=TRUE}
+library(forcats) 
+
+
+
+
+#here
+# Convert categorical variables into dummy variables with grouping
+categorical_vars <- c("Funding_Agencies", "Has_Grant", "InGroup1", 
+                     "InGroup2", "Citation_Locations", "Has_Patent")
+
+# First identify binary and multi-level variables
+binary_vars <- c()
+multilevel_vars <- c()
+
+for (var in categorical_vars) {
+  df[[var]] <- as.factor(df[[var]])
+  # Check number of levels
+  if (length(unique(df[[var]])) <= 2) {
+    binary_vars <- c(binary_vars, var)
+  } else {
+    multilevel_vars <- c(multilevel_vars, var)
+  }
+}
+
+# Handle binary variables (create single column)
+for (var in binary_vars) {
+  # Convert to 0/1 column
+  # Assuming the second level is the "positive" case (like 1, True, Yes)
+  df[[paste0(var, "_binary")]] <- as.numeric(df[[var]] == levels(df[[var]])[2])
+  cat("\nCreated binary variable for", var, "\n")
+}
+
+# Handle multi-level variables
+for (var in multilevel_vars) {
+  # Keep top 5 categories and lump the rest into "Other"
+  df[[var]] <- fct_lump(df[[var]], n = 5)
+  
+  # Get the actual levels (categories) for this variable
+  current_levels <- levels(df[[var]])
+  
+  # Create dummy matrix
+  dummy_matrix <- model.matrix(~ df[[var]] - 1, data = df)
+  
+  # Create clear column names
+  clear_names <- paste0(var, "_", current_levels)
+  colnames(dummy_matrix) <- clear_names
+  
+  # Add dummy columns to dataframe
+  df <- cbind(df, as.data.frame(dummy_matrix))
+  
+  cat("\nCreated dummy variables for", var, ":\n")
+  print(clear_names)
+}
+
+# Remove original categorical columns
+df <- df %>% select(-all_of(categorical_vars))
+
+# Show the new column names
+cat("\nNew dummy variable columns:\n")
+print(names(df)[grep(paste(categorical_vars, collapse="|"), names(df))])
+```
+
+## Code: Polynomial Regression on PubYear {.allowframebreaks}
+
+{r eval=TRUE, include=TRUE}
+# Example: Fit a polynomial (2nd-degree) model on numeric year
+
+# Convert PubYear to numeric offset
+df$YearNumeric <- df$PubYear - 1980
+
+# Fit polynomial model
+lm_poly <- lm(CitedCount ~ poly(YearNumeric, 2), data=df)
+summary(lm_poly)
+```
+
+## Complete Data Cleaning Code {.allowframebreaks}
+
+{r eval=TRUE, include=TRUE}
+library(dplyr)
+library(forcats)
+
+# Load dataset
+# df <- read.csv("path/to/your/dataset.csv")
+
+# Check existing column names
+names(df)
+
+# Remove duplicate columns before filtering
+df <- df[, !duplicated(names(df))]
+
+# Drop unnecessary columns
+# Filter by year range (students should edit their range)
+#year_range <- c(1980, 2000)  # Change this to assigned years
+#df <- df %>% 
+#  filter(PubYear >= year_range[1] & PubYear <= year_range[2])
+
+
+# Save cleaned dataset
+write.csv(df, "C:/Users/40459080/Desktop/merged_C01_network_grant_patent_paper_1980_2020_all_anti_micr_cleaned.csv", row.names = FALSE)
+
+
+## Handling Large Datasets - Optional Strategy {.allowframebreaks}
+
+### Reducing Dataset Size for Memory Issues {.allowframebreaks}
+- **ONLY AND ONLY** if the dataset is too large and causing memory issues, reduce the time range
+- Instead of 1980-2020, use 1980-2010
+
+
+### Reducing Dataset Size for Memory Issues-I {.allowframebreaks}
+
+- Example:
+
+{r eval=FALSE}
+year_range <- c(1980, 2010)  # Reduce time range if needed
+df <- df %>% 
+  filter(PubYear >= year_range[1] & PubYear <= year_range[2])
+```
+
+## Numerical Variables
+
+### All non-categorical columns must be treated as numeric {.allowframebreaks}
+- Ensure that numerical columns remain numeric for proper regression analysis
+- Examples:
+  - `CitedCount`
+  - `OutDegree`
+  - `InDegree`
+  - `TotalDegree`
+  - `ClusteringCoeff`
+  - `CrossGroupCitations`
+  - `Grant_Count`
+
+### Check data structure
+{r eval=FALSE}
+str(df)
+summary(df)
+```
+
+## Understanding Interaction Terms {.allowframebreaks}
+
+### Interaction Terms and Transformations {.allowframebreaks}
+- Some variables might have an interaction effect (e.g., `Grant_Count` and `Patent_Count`)
+- Polynomial or logarithmic transformations may improve model performance
+
+{r eval=FALSE}
+# Interaction term example
+df$Interaction_Term <- df$Grant_Count * df$Patent_Count
+
+# Log transformation (useful if variables are skewed)
+df$Log_Grant_Count <- log1p(df$Grant_Count)
+df$Log_Patent_Count <- log1p(df$Patent_Count)
+```
+
+# set.seed(40459080) (HELPS IN REGRESSION PART)
+ 
+ index <- createDataPartition(SC$CitedCount,times = 1, p = 0.8, list = FALSE)
+ train <- AH[index, ]
+ test<- AH[index, ]
+ 
+ Simple Regression with Other Predictor
+{r}
+#Fit a simple linear regression model
+
+ library(caret)
+ library(car)  
+ 
+ # Fit a simple linear regression model
+ modela <- lm(CitedCount ~ TotalDegree, data=SC)
+ summary(modela)
+
+```
+ TotalDegree has a positive but weak effect on citations.
